@@ -1,12 +1,12 @@
 namespace Pets
 {
+    using Autofac;
+    using Autofac.Extensions.ConfiguredModules;
+    using Json.Converters.Hierarchy;
     using Microsoft.AspNetCore.Builder;
-    using Microsoft.AspNetCore.Hosting;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
-    using Microsoft.Extensions.Hosting;
-    using Microsoft.OpenApi.Models;
-    using Providers;
+    using Swagger;
 
     public class Startup
     {
@@ -21,54 +21,59 @@ namespace Pets
 
 
 
-        public void ConfigureServices(IServiceCollection services)
+        public void ConfigureDevelopmentServices(IServiceCollection services)
         {
-            services.AddControllersWithViews().AddNewtonsoftJson();
-            
-            services.AddSwaggerGen(options =>
-            {
-                options.SwaggerDoc(
-                    name: "v1",
-                    info: new OpenApiInfo
-                    {
-                        Title = "Pets API",
-                        Version = "v1"
-                    });
+            services
+                .AddSwagger();
 
-                options.CustomSchemaIds(x => x.FullName);
-            });
 
-            string connectionString = Configuration.GetConnectionString("Pets");
-            DatabaseProvider.Init(connectionString);
+            ConfigureServices(services);
         }
 
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void ConfigureServices(IServiceCollection services)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-
-                app.UseSwagger();
-                app.UseSwaggerUI(options =>
+            services
+                .AddAutoMapper(typeof(ApplicationAssemblyMarker).Assembly)
+                .AddControllersWithViews()
+                .ConfigureApiBehaviorOptions(options =>
                 {
-                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Pets API");
+                    options.SuppressModelStateInvalidFilter = true;
+                })
+                .AddNewtonsoftJson(options =>
+                {
+                    options.SerializerSettings.Converters.Add(new HierarchyJsonConverter());
                 });
-            }
+        }
 
-            // app.UseHttpsRedirection();
 
-            app.UseStaticFiles();
-            
-            app.UseRouting();
 
-            // app.UseAuthorization();
+        public void ConfigureContainer(ContainerBuilder containerBuilder)
+        {
+            containerBuilder
+                .RegisterConfiguredModulesFromCurrentAssembly(Configuration);
+        }
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapControllers();
 
-                endpoints.MapFallbackToController("Index", "Home");
-            });
+
+        public void ConfigureDevelopment(IApplicationBuilder applicationBuilder)
+        {
+            applicationBuilder
+                .UseDeveloperExceptionPage()
+                .UseSwagger();
+
+            Configure(applicationBuilder);
+        }
+
+        public void Configure(IApplicationBuilder applicationBuilder)
+        {
+            applicationBuilder
+                .UseStaticFiles()
+                .UseRouting()
+                .UseEndpoints(endpoints =>
+                {
+                    endpoints.MapControllers();
+                    endpoints.MapFallbackToController("Index", "Home");
+                });
         }
     }
 }
